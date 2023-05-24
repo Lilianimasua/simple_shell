@@ -1,62 +1,146 @@
+/*
+ * File: memrealloc.c
+ * Auth: John Mwadime
+ *       John
+ */
+
 #include "shell.h"
 
-/**
- **_memset - fills memory with a constant byte
- *@s: the pointer to the memory area
- *@b: the byte to fill *s with
- *@n: the amount of bytes to be filled
- *Return: (s) a pointer to the memory area s
- */
-char *_memset(char *s, char b, unsigned int n)
-{
-	unsigned int i;
-
-	for (i = 0; i < n; i++)
-		s[i] = b;
-	return (s);
-}
+char *fill_path_dir(char *path);
+list_t *get_path_dir(char *path);
 
 /**
- * ffree - frees a string of strings
- * @pp: string of strings
- */
-void ffree(char **pp)
-{
-	char **a = pp;
-
-	if (!pp)
-		return;
-	while (*pp)
-		free(*pp++);
-	free(a);
-}
-
-/**
- * _realloc - reallocates a block of memory
- * @ptr: pointer to previous malloc'ated block
- * @old_size: byte size of previous block
- * @new_size: byte size of new block
+ * get_location - Locates a command in the PATH.
+ * @command: The command to locate.
  *
- * Return: pointer to da ol'block nameen.
+ * Return: If an error occurs or the command cannot be located - NULL.
+ *         Otherwise - the full pathname of the command.
  */
-void *_realloc(void *ptr, unsigned int old_size, unsigned int new_size)
+char *get_location(char *command)
 {
-	char *p;
+	char **path, *temp;
+	list_t *dirs, *head;
+	struct stat st;
 
-	if (!ptr)
-		return (malloc(new_size));
-	if (!new_size)
-		return (free(ptr), NULL);
-	if (new_size == old_size)
-		return (ptr);
-
-	p = malloc(new_size);
-	if (!p)
+	path = _getenv("PATH");
+	if (!path || !(*path))
 		return (NULL);
 
-	old_size = old_size < new_size ? old_size : new_size;
-	while (old_size--)
-		p[old_size] = ((char *)ptr)[old_size];
-	free(ptr);
-	return (p);
+	dirs = get_path_dir(*path + 5);
+	head = dirs;
+
+	while (dirs)
+	{
+		temp = malloc(_strlen(dirs->dir) + _strlen(command) + 2);
+		if (!temp)
+			return (NULL);
+
+		_strcpy(temp, dirs->dir);
+		_strcat(temp, "/");
+		_strcat(temp, command);
+
+		if (stat(temp, &st) == 0)
+		{
+			free_list(head);
+			return (temp);
+		}
+
+		dirs = dirs->next;
+		free(temp);
+	}
+
+	free_list(head);
+
+	return (NULL);
+}
+
+/**
+ * fill_path_dir - Copies path but also replaces leading/sandwiched/trailing
+ *		   colons (:) with current working directory.
+ * @path: The colon-separated list of directories.
+ *
+ * Return: A copy of path with any leading/sandwiched/trailing colons replaced
+ *	   with the current working directory.
+ */
+char *fill_path_dir(char *path)
+{
+	int i, length = 0;
+	char *path_copy, *pwd;
+
+	pwd = *(_getenv("PWD")) + 4;
+	for (i = 0; path[i]; i++)
+	{
+		if (path[i] == ':')
+		{
+			if (path[i + 1] == ':' || i == 0 || path[i + 1] == '\0')
+				length += _strlen(pwd) + 1;
+			else
+				length++;
+		}
+		else
+			length++;
+	}
+	path_copy = malloc(sizeof(char) * (length + 1));
+	if (!path_copy)
+		return (NULL);
+	path_copy[0] = '\0';
+	for (i = 0; path[i]; i++)
+	{
+		if (path[i] == ':')
+		{
+			if (i == 0)
+			{
+				_strcat(path_copy, pwd);
+				_strcat(path_copy, ":");
+			}
+			else if (path[i + 1] == ':' || path[i + 1] == '\0')
+			{
+				_strcat(path_copy, ":");
+				_strcat(path_copy, pwd);
+			}
+			else
+				_strcat(path_copy, ":");
+		}
+		else
+		{
+			_strncat(path_copy, &path[i], 1);
+		}
+	}
+	return (path_copy);
+}
+
+/**
+ * get_path_dir - Tokenizes a colon-separated list of
+ *                directories into a list_s linked list.
+ * @path: The colon-separated list of directories.
+ *
+ * Return: A pointer to the initialized linked list.
+ */
+list_t *get_path_dir(char *path)
+{
+	int index;
+	char **dirs, *path_copy;
+	list_t *head = NULL;
+
+	path_copy = fill_path_dir(path);
+	if (!path_copy)
+		return (NULL);
+	dirs = _strtok(path_copy, ":");
+	free(path_copy);
+	if (!dirs)
+		return (NULL);
+
+	for (index = 0; dirs[index]; index++)
+	{
+		if (add_node_end(&head, dirs[index]) == NULL)
+		{
+			free_list(head);
+			free(dirs);
+			return (NULL);
+		}
+	}
+
+	free(dirs);
+
+	return (head);
 }
