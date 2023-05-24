@@ -1,140 +1,141 @@
+/*
+ * File: adderros.c
+ * Auth: John Mwadime
+ *       Lilian
+ */
+
 #include "shell.h"
 
-/**
- * _erratoi - converts a string to an integer
- * @s: the string to be converted
- * Return: 0 if no numbers in string, converted number otherwise
- *       -1 on error
- */
-int _erratoi(char *s)
-{
-	int i = 0;
-	unsigned long int result = 0;
-
-	if (*s == '+')
-		s++;  /* TODO: why does this make main return 255? */
-	for (i = 0;  s[i] != '\0'; i++)
-	{
-		if (s[i] >= '0' && s[i] <= '9')
-		{
-			result *= 10;
-			result += (s[i] - '0');
-			if (result > INT_MAX)
-				return (-1);
-		}
-		else
-			return (-1);
-	}
-	return (result);
-}
+int shellby_env(char **args, char __attribute__((__unused__)) **front);
+int shellby_setenv(char **args, char __attribute__((__unused__)) **front);
+int shellby_unsetenv(char **args, char __attribute__((__unused__)) **front);
 
 /**
- * print_error - prints an error message
- * @info: the parameter & return info struct
- * @estr: string containing specified error type
- * Return: 0 if no numbers in string, converted number otherwise
- *        -1 on error
- */
-void print_error(info_t *info, char *estr)
-{
-	_eputs(info->fname);
-	_eputs(": ");
-	print_d(info->line_count, STDERR_FILENO);
-	_eputs(": ");
-	_eputs(info->argv[0]);
-	_eputs(": ");
-	_eputs(estr);
-}
-
-/**
- * print_d - function prints a decimal (integer) number (base 10)
- * @input: the input
- * @fd: the filedescriptor to write to
+ * shellby_env - Prints the current environment.
+ * @args: An array of arguments passed to the shell.
+ * @front: A double pointer to the beginning of args.
  *
- * Return: number of characters printed
+ * Return: If an error occurs - -1.
+ *	   Otherwise - 0.
+ *
+ * Description: Prints one variable per line in the
+ *              format 'variable'='value'.
  */
-int print_d(int input, int fd)
+int shellby_env(char **args, char __attribute__((__unused__)) **front)
 {
-	int (*__putchar)(char) = _putchar;
-	int i, count = 0;
-	unsigned int _abs_, current;
+	int index;
+	char nc = '\n';
 
-	if (fd == STDERR_FILENO)
-		__putchar = _eputchar;
-	if (input < 0)
-	{
-		_abs_ = -input;
-		__putchar('-');
-		count++;
-	}
-	else
-		_abs_ = input;
-	current = _abs_;
-	for (i = 1000000000; i > 1; i /= 10)
-	{
-		if (_abs_ / i)
-		{
-			__putchar('0' + current / i);
-			count++;
-		}
-		current %= i;
-	}
-	__putchar('0' + current);
-	count++;
+	if (!environ)
+		return (-1);
 
-	return (count);
+	for (index = 0; environ[index]; index++)
+	{
+		write(STDOUT_FILENO, environ[index], _strlen(environ[index]));
+		write(STDOUT_FILENO, &nc, 1);
+	}
+
+	(void)args;
+	return (0);
 }
 
 /**
- * convert_number - converter function, a clone of itoa
- * @num: number
- * @base: base
- * @flags: argument flags
+ * shellby_setenv - Changes or adds an environmental variable to the PATH.
+ * @args: An array of arguments passed to the shell.
+ * @front: A double pointer to the beginning of args.
+ * Description: args[1] is the name of the new or existing PATH variable.
+ *              args[2] is the value to set the new or changed variable to.
  *
- * Return: string
+ * Return: If an error occurs - -1.
+ *         Otherwise - 0.
  */
-char *convert_number(long int num, int base, int flags)
+int shellby_setenv(char **args, char __attribute__((__unused__)) **front)
 {
-	static char *array;
-	static char buffer[50];
-	char sign = 0;
-	char *ptr;
-	unsigned long n = num;
+	char **env_var = NULL, **new_environ, *new_value;
+	size_t size;
+	int index;
 
-	if (!(flags & CONVERT_UNSIGNED) && num < 0)
+	if (!args[0] || !args[1])
+		return (create_error(args, -1));
+
+	new_value = malloc(_strlen(args[0]) + 1 + _strlen(args[1]) + 1);
+	if (!new_value)
+		return (create_error(args, -1));
+	_strcpy(new_value, args[0]);
+	_strcat(new_value, "=");
+	_strcat(new_value, args[1]);
+
+	env_var = _getenv(args[0]);
+	if (env_var)
 	{
-		n = -num;
-		sign = '-';
-
+		free(*env_var);
+		*env_var = new_value;
+		return (0);
 	}
-	array = flags & CONVERT_LOWERCASE ? "0123456789abcdef" : "0123456789ABCDEF";
-	ptr = &buffer[49];
-	*ptr = '\0';
+	for (size = 0; environ[size]; size++)
+		;
 
-	do	{
-		*--ptr = array[n % base];
-		n /= base;
-	} while (n != 0);
+	new_environ = malloc(sizeof(char *) * (size + 2));
+	if (!new_environ)
+	{
+		free(new_value);
+		return (create_error(args, -1));
+	}
 
-	if (sign)
-		*--ptr = sign;
-	return (ptr);
+	for (index = 0; environ[index]; index++)
+		new_environ[index] = environ[index];
+
+	free(environ);
+	environ = new_environ;
+	environ[index] = new_value;
+	environ[index + 1] = NULL;
+
+	return (0);
 }
 
 /**
- * remove_comments - function replaces first instance of '#' with '\0'
- * @buf: address of the string to modify
+ * shellby_unsetenv - Deletes an environmental variable from the PATH.
+ * @args: An array of arguments passed to the shell.
+ * @front: A double pointer to the beginning of args.
+ * Description: args[1] is the PATH variable to remove.
  *
- * Return: Always 0;
+ * Return: If an error occurs - -1.
+ *         Otherwise - 0.
  */
-void remove_comments(char *buf)
+int shellby_unsetenv(char **args, char __attribute__((__unused__)) **front)
 {
-	int i;
+	char **env_var, **new_environ;
+	size_t size;
+	int index, index2;
 
-	for (i = 0; buf[i] != '\0'; i++)
-		if (buf[i] == '#' && (!i || buf[i - 1] == ' '))
+	if (!args[0])
+		return (create_error(args, -1));
+	env_var = _getenv(args[0]);
+	if (!env_var)
+		return (0);
+
+	for (size = 0; environ[size]; size++)
+		;
+
+	new_environ = malloc(sizeof(char *) * size);
+	if (!new_environ)
+		return (create_error(args, -1));
+
+	for (index = 0, index2 = 0; environ[index]; index++)
+	{
+		if (*env_var == environ[index])
 		{
-			buf[i] = '\0';
-			break;
+			free(*env_var);
+			continue;
 		}
+		new_environ[index2] = environ[index];
+		index2++;
+	}
+	free(environ);
+	environ = new_environ;
+	environ[size - 1] = NULL;
+
+	return (0);
 }
+
+
