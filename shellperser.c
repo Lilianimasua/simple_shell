@@ -1,86 +1,110 @@
+/*
+ * File: shellparser.c
+ * Auth: John Mwadime
+ *       Lilian
+ */
+
 #include "shell.h"
 
+int token_len(char *str, char *delim);
+int count_tokens(char *str, char *delim);
+char **_strtok(char *line, char *delim);
+
 /**
- * is_cmd - determines if a file is an executable command
- * @info: the info struct
- * @path: path to the file
+ * token_len - Locates the delimiter index marking the end
+ *             of the first token contained within a string.
+ * @str: The string to be searched.
+ * @delim: The delimiter character.
  *
- * Return: 1 if true, 0 otherwise
+ * Return: The delimiter index marking the end of
+ *         the intitial token pointed to be str.
  */
-int is_cmd(info_t *info, char *path)
+int token_len(char *str, char *delim)
 {
-	struct stat st;
+	int index = 0, len = 0;
 
-	(void)info;
-	if (!path || stat(path, &st))
-		return (0);
-
-	if (st.st_mode & S_IFREG)
+	while (*(str + index) && *(str + index) != *delim)
 	{
-		return (1);
+		len++;
+		index++;
 	}
-	return (0);
+
+	return (len);
 }
 
 /**
- * dup_chars - duplicates characters
- * @pathstr: the PATH string
- * @start: starting index
- * @stop: stopping index
+ * count_tokens - Counts the number of delimited
+ *                words contained within a string.
+ * @str: The string to be searched.
+ * @delim: The delimiter character.
  *
- * Return: pointer to new buffer
+ * Return: The number of words contained within str.
  */
-char *dup_chars(char *pathstr, int start, int stop)
+int count_tokens(char *str, char *delim)
 {
-	static char buf[1024];
-	int i = 0, k = 0;
+	int index, tokens = 0, len = 0;
 
-	for (k = 0, i = start; i < stop; i++)
-		if (pathstr[i] != ':')
-			buf[k++] = pathstr[i];
-	buf[k] = 0;
-	return (buf);
-}
+	for (index = 0; *(str + index); index++)
+		len++;
 
-/**
- * find_path - finds this cmd in the PATH string
- * @info: the info struct
- * @pathstr: the PATH string
- * @cmd: the cmd to find
- *
- * Return: full path of cmd if found or NULL
- */
-char *find_path(info_t *info, char *pathstr, char *cmd)
-{
-	int i = 0, curr_pos = 0;
-	char *path;
-
-	if (!pathstr)
-		return (NULL);
-	if ((_strlen(cmd) > 2) && starts_with(cmd, "./"))
+	for (index = 0; index < len; index++)
 	{
-		if (is_cmd(info, cmd))
-			return (cmd);
-	}
-	while (1)
-	{
-		if (!pathstr[i] || pathstr[i] == ':')
+		if (*(str + index) != *delim)
 		{
-			path = dup_chars(pathstr, curr_pos, i);
-			if (!*path)
-				_strcat(path, cmd);
-			else
-			{
-				_strcat(path, "/");
-				_strcat(path, cmd);
-			}
-			if (is_cmd(info, path))
-				return (path);
-			if (!pathstr[i])
-				break;
-			curr_pos = i;
+			tokens++;
+			index += token_len(str + index, delim);
 		}
-		i++;
 	}
-	return (NULL);
+
+	return (tokens);
+}
+
+/**
+ * _strtok - Tokenizes a string.
+ * @line: The string.
+ * @delim: The delimiter character to tokenize the string by.
+ *
+ * Return: A pointer to an array containing the tokenized words.
+ */
+char **_strtok(char *line, char *delim)
+{
+	char **ptr;
+	int index = 0, tokens, t, letters, l;
+
+	tokens = count_tokens(line, delim);
+	if (tokens == 0)
+		return (NULL);
+
+	ptr = malloc(sizeof(char *) * (tokens + 2));
+	if (!ptr)
+		return (NULL);
+
+	for (t = 0; t < tokens; t++)
+	{
+		while (line[index] == *delim)
+			index++;
+
+		letters = token_len(line + index, delim);
+
+		ptr[t] = malloc(sizeof(char) * (letters + 1));
+		if (!ptr[t])
+		{
+			for (index -= 1; index >= 0; index--)
+				free(ptr[index]);
+			free(ptr);
+			return (NULL);
+		}
+
+		for (l = 0; l < letters; l++)
+		{
+			ptr[t][l] = line[index];
+			index++;
+		}
+
+		ptr[t][l] = '\0';
+	}
+	ptr[t] = NULL;
+	ptr[t + 1] = NULL;
+
+	return (ptr);
 }
