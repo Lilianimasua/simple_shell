@@ -1,159 +1,161 @@
+/*
+ * File: handler.c
+ * Auth: John Mwadime
+ *       Lilian
+ */
+
 #include "shell.h"
 
-/**
- * add_node - adds a node to the start of the list
- * @head: address of pointer to head node
- * @str: str field of node
- * @num: node index used by history
- *
- * Return: size of list
- */
-list_t *add_node(list_t **head, const char *str, int num)
-{
-	list_t *new_head;
+void free_args(char **args, char **front);
+char *get_pid(void);
+char *get_env_value(char *beginning, int len);
+void variable_replacement(char **args, int *exe_ret);
 
-	if (!head)
-		return (NULL);
-	new_head = malloc(sizeof(list_t));
-	if (!new_head)
-		return (NULL);
-	_memset((void *)new_head, 0, sizeof(list_t));
-	new_head->num = num;
-	if (str)
-	{
-		new_head->str = _strdup(str);
-		if (!new_head->str)
-		{
-			free(new_head);
-			return (NULL);
-		}
-	}
-	new_head->next = *head;
-	*head = new_head;
-	return (new_head);
+/**
+ * free_args - Frees up memory taken by args.
+ * @args: A null-terminated double pointer containing commands/arguments.
+ * @front: A double pointer to the beginning of args.
+ */
+void free_args(char **args, char **front)
+{
+	size_t i;
+
+	for (i = 0; args[i] || args[i + 1]; i++)
+		free(args[i]);
+
+	free(front);
 }
 
 /**
- * add_node_end - adds a node to the end of the list
- * @head: address of pointer to head node
- * @str: str field of node
- * @num: node index used by history
+ * get_pid - Gets the current process ID.
+ * Description: Opens the stat file, a space-delimited file containing
+ *              information about the current process. The PID is the
+ *              first word in the file. The function reads the PID into
+ *              a buffer and replace the space at the end with a \0 byte.
  *
- * Return: size of list
+ * Return: The current process ID or NULL on failure.
  */
-list_t *add_node_end(list_t **head, const char *str, int num)
-{
-	list_t *new_node, *node;
-
-	if (!head)
-		return (NULL);
-
-	node = *head;
-	new_node = malloc(sizeof(list_t));
-	if (!new_node)
-		return (NULL);
-	_memset((void *)new_node, 0, sizeof(list_t));
-	new_node->num = num;
-	if (str)
-	{
-		new_node->str = _strdup(str);
-		if (!new_node->str)
-		{
-			free(new_node);
-			return (NULL);
-		}
-	}
-	if (node)
-	{
-		while (node->next)
-			node = node->next;
-		node->next = new_node;
-	}
-	else
-		*head = new_node;
-	return (new_node);
-}
-
-/**
- * print_list_str - prints only the str element of a list_t linked list
- * @h: pointer to first node
- *
- * Return: size of list
- */
-size_t print_list_str(const list_t *h)
+char *get_pid(void)
 {
 	size_t i = 0;
+	char *buffer;
+	ssize_t file;
 
-	while (h)
+	file = open("/proc/self/stat", O_RDONLY);
+	if (file == -1)
 	{
-		_puts(h->str ? h->str : "(nil)");
-		_puts("\n");
-		h = h->next;
-		i++;
+		perror("Cant read file");
+		return (NULL);
 	}
-	return (i);
+	buffer = malloc(120);
+	if (!buffer)
+	{
+		close(file);
+		return (NULL);
+	}
+	read(file, buffer, 120);
+	while (buffer[i] != ' ')
+		i++;
+	buffer[i] = '\0';
+
+	close(file);
+	return (buffer);
 }
 
 /**
- * delete_node_at_index - deletes node at given index
- * @head: address of pointer to first node
- * @index: index of node to delete
+ * get_env_value - Gets the value corresponding to an environmental variable.
+ * @beginning: The environmental variable to search for.
+ * @len: The length of the environmental variable to search for.
  *
- * Return: 1 on success, 0 on failure
+ * Return: If the variable is not found - an empty string.
+ *         Otherwise - the value of the environmental variable.
+ *
+ * Description: Variables are stored in the format VARIABLE=VALUE.
  */
-int delete_node_at_index(list_t **head, unsigned int index)
+char *get_env_value(char *beginning, int len)
 {
-	list_t *node, *prev_node;
-	unsigned int i = 0;
+	char **var_addr;
+	char *replacement = NULL, *temp, *var;
 
-	if (!head || !*head)
-		return (0);
+	var = malloc(len + 1);
+	if (!var)
+		return (NULL);
+	var[0] = '\0';
+	_strncat(var, beginning, len);
 
-	if (!index)
+	var_addr = _getenv(var);
+	free(var);
+	if (var_addr)
 	{
-		node = *head;
-		*head = (*head)->next;
-		free(node->str);
-		free(node);
-		return (1);
+		temp = *var_addr;
+		while (*temp != '=')
+			temp++;
+		temp++;
+		replacement = malloc(_strlen(temp) + 1);
+		if (replacement)
+			_strcpy(replacement, temp);
 	}
-	node = *head;
-	while (node)
+
+	return (replacement);
+}
+
+/**
+ * variable_replacement - Handles variable replacement.
+ * @line: A double pointer containing the command and arguments.
+ * @exe_ret: A pointer to the return value of the last executed command.
+ *
+ * Description: Replaces $$ with the current PID, $? with the return value
+ *              of the last executed program, and envrionmental variables
+ *              preceded by $ with their corresponding value.
+ */
+void variable_replacement(char **line, int *exe_ret)
+{
+	int j, k = 0, len;
+	char *replacement = NULL, *old_line = NULL, *new_line;
+
+	old_line = *line;
+	for (j = 0; old_line[j]; j++)
 	{
-		if (i == index)
+		if (old_line[j] == '$' && old_line[j + 1] &&
+				old_line[j + 1] != ' ')
 		{
-			prev_node->next = node->next;
-			free(node->str);
-			free(node);
-			return (1);
+			if (old_line[j + 1] == '$')
+			{
+				replacement = get_pid();
+				k = j + 2;
+			}
+			else if (old_line[j + 1] == '?')
+			{
+				replacement = _itoa(*exe_ret);
+				k = j + 2;
+			}
+			else if (old_line[j + 1])
+			{
+				/* extract the variable name to search for */
+				for (k = j + 1; old_line[k] &&
+						old_line[k] != '$' &&
+						old_line[k] != ' '; k++)
+					;
+				len = k - (j + 1);
+				replacement = get_env_value(&old_line[j + 1], len);
+			}
+			new_line = malloc(j + _strlen(replacement)
+					  + _strlen(&old_line[k]) + 1);
+			if (!line)
+				return;
+			new_line[0] = '\0';
+			_strncat(new_line, old_line, j);
+			if (replacement)
+			{
+				_strcat(new_line, replacement);
+				free(replacement);
+				replacement = NULL;
+			}
+			_strcat(new_line, &old_line[k]);
+			free(old_line);
+			*line = new_line;
+			old_line = new_line;
+			j = -1;
 		}
-		i++;
-		prev_node = node;
-		node = node->next;
 	}
-	return (0);
-}
-
-/**
- * free_list - frees all nodes of a list
- * @head_ptr: address of pointer to head node
- *
- * Return: void
- */
-void free_list(list_t **head_ptr)
-{
-	list_t *node, *next_node, *head;
-
-	if (!head_ptr || !*head_ptr)
-		return;
-	head = *head_ptr;
-	node = head;
-	while (node)
-	{
-		next_node = node->next;
-		free(node->str);
-		free(node);
-		node = next_node;
-	}
-	*head_ptr = NULL;
 }
