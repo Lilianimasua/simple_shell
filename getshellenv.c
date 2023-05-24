@@ -1,93 +1,192 @@
+/*
+ * File: shellenv.c
+ * Auth: John Mwadime
+ *       Lilian
+ */
+
 #include "shell.h"
 
-/**
- * get_environ - returns the string array copy of our environ
- * @info: Structure containing potential arguments. Used to maintain
- *          constant function prototype.
- * Return: Always 0
- */
-char **get_environ(info_t *info)
-{
-	if (!info->environ || info->env_changed)
-	{
-		info->environ = list_to_strings(info->env);
-		info->env_changed = 0;
-	}
-
-	return (info->environ);
-}
+void handle_line(char **line, ssize_t read);
+ssize_t get_new_len(char *line);
+void logical_ops(char *line, ssize_t *new_len);
 
 /**
- * _unsetenv - Remove an environment variable
- * @info: Structure containing potential arguments. Used to maintain
- *        constant function prototype.
- *  Return: 1 on delete, 0 otherwise
- * @var: the string env var property
+ * handle_line - Partitions a line read from standard input as needed.
+ * @line: A pointer to a line read from standard input.
+ * @read: The length of line.
+ *
+ * Description: Spaces are inserted to separate ";", "||", and "&&".
+ *              Replaces "#" with '\0'.
  */
-int _unsetenv(info_t *info, char *var)
+void handle_line(char **line, ssize_t read)
 {
-	list_t *node = info->env;
-	size_t i = 0;
-	char *p;
+	char *old_line, *new_line;
+	char previous, current, next;
+	size_t i, j;
+	ssize_t new_len;
 
-	if (!node || !var)
-		return (0);
-
-	while (node)
+	new_len = get_new_len(*line);
+	if (new_len == read - 1)
+		return;
+	new_line = malloc(new_len + 1);
+	if (!new_line)
+		return;
+	j = 0;
+	old_line = *line;
+	for (i = 0; old_line[i]; i++)
 	{
-		p = starts_with(node->str, var);
-		if (p && *p == '=')
+		current = old_line[i];
+		next = old_line[i + 1];
+		if (i != 0)
 		{
-			info->env_changed = delete_node_at_index(&(info->env), i);
-			i = 0;
-			node = info->env;
+			previous = old_line[i - 1];
+			if (current == ';')
+			{
+				if (next == ';' && previous != ' ' && previous != ';')
+				{
+					new_line[j++] = ' ';
+					new_line[j++] = ';';
+					continue;
+				}
+				else if (previous == ';' && next != ' ')
+				{
+					new_line[j++] = ';';
+					new_line[j++] = ' ';
+					continue;
+				}
+				if (previous != ' ')
+					new_line[j++] = ' ';
+				new_line[j++] = ';';
+				if (next != ' ')
+					new_line[j++] = ' ';
+				continue;
+			}
+			else if (current == '&')
+			{
+				if (next == '&' && previous != ' ')
+					new_line[j++] = ' ';
+				else if (previous == '&' && next != ' ')
+				{
+					new_line[j++] = '&';
+					new_line[j++] = ' ';
+					continue;
+				}
+			}
+			else if (current == '|')
+			{
+				if (next == '|' && previous != ' ')
+					new_line[j++]  = ' ';
+				else if (previous == '|' && next != ' ')
+				{
+					new_line[j++] = '|';
+					new_line[j++] = ' ';
+					continue;
+				}
+			}
+		}
+		else if (current == ';')
+		{
+			if (i != 0 && old_line[i - 1] != ' ')
+				new_line[j++] = ' ';
+			new_line[j++] = ';';
+			if (next != ' ' && next != ';')
+				new_line[j++] = ' ';
 			continue;
 		}
-		node = node->next;
-		i++;
+		new_line[j++] = old_line[i];
 	}
-	return (info->env_changed);
+	new_line[j] = '\0';
+
+	free(*line);
+	*line = new_line;
 }
 
 /**
- * _setenv - Initialize a new environment variable,
- *             or modify an existing one
- * @info: Structure containing potential arguments. Used to maintain
- *        constant function prototype.
- * @var: the string env var property
- * @value: the string env var value
- *  Return: Always 0
+ * get_new_len - Gets the new length of a line partitioned
+ *               by ";", "||", "&&&", or "#".
+ * @line: The line to check.
+ *
+ * Return: The new length of the line.
+ *
+ * Description: Cuts short lines containing '#' comments with '\0'.
  */
-int _setenv(info_t *info, char *var, char *value)
+
+ssize_t get_new_len(char *line)
 {
-	char *buf = NULL;
-	list_t *node;
-	char *p;
+	size_t i;
+	ssize_t new_len = 0;
+	char current, next;
 
-	if (!var || !value)
-		return (0);
-
-	buf = malloc(_strlen(var) + _strlen(value) + 2);
-	if (!buf)
-		return (1);
-	_strcpy(buf, var);
-	_strcat(buf, "=");
-	_strcat(buf, value);
-	node = info->env;
-	while (node)
+	for (i = 0; line[i]; i++)
 	{
-		p = starts_with(node->str, var);
-		if (p && *p == '=')
+		current = line[i];
+		next = line[i + 1];
+		if (current == '#')
 		{
-			free(node->str);
-			node->str = buf;
-			info->env_changed = 1;
-			return (0);
+			if (i == 0 || line[i - 1] == ' ')
+			{
+				line[i] = '\0';
+				break;
+			}
 		}
-		node = node->next;
+		else if (i != 0)
+		{
+			if (current == ';')
+			{
+				if (next == ';' && line[i - 1] != ' ' && line[i - 1] != ';')
+				{
+					new_len += 2;
+					continue;
+				}
+				else if (line[i - 1] == ';' && next != ' ')
+				{
+					new_len += 2;
+					continue;
+				}
+				if (line[i - 1] != ' ')
+					new_len++;
+				if (next != ' ')
+					new_len++;
+			}
+			else
+				logical_ops(&line[i], &new_len);
+		}
+		else if (current == ';')
+		{
+			if (i != 0 && line[i - 1] != ' ')
+				new_len++;
+			if (next != ' ' && next != ';')
+				new_len++;
+		}
+		new_len++;
 	}
-	add_node_end(&(info->env), buf, 0);
-	free(buf);
-	info->env_changed = 1;
-	return (0);
+	return (new_len);
+}
+/**
+ * logical_ops - Checks a line for logical operators "||" or "&&".
+ * @line: A pointer to the character to check in the line.
+ * @new_len: Pointer to new_len in get_new_len function.
+ */
+void logical_ops(char *line, ssize_t *new_len)
+{
+	char previous, current, next;
+
+	previous = *(line - 1);
+	current = *line;
+	next = *(line + 1);
+
+	if (current == '&')
+	{
+		if (next == '&' && previous != ' ')
+			(*new_len)++;
+		else if (previous == '&' && next != ' ')
+			(*new_len)++;
+	}
+	else if (current == '|')
+	{
+		if (next == '|' && previous != ' ')
+			(*new_len)++;
+		else if (previous == '|' && next != ' ')
+			(*new_len)++;
+	}
 }
