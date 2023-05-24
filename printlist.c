@@ -1,122 +1,124 @@
 #include "shell.h"
 
-/**
- * list_len - determines length of linked list
- * @h: pointer to first node
- *
- * Return: size of list
- */
-size_t list_len(const list_t *h)
-{
-	size_t i = 0;
+int cant_open(char *file_path);
+int proc_file_commands(char *file_path, int *exe_ret);
 
-	while (h)
+/**
+ * cant_open - If the file doesn't exist or lacks proper permissions, print
+ * a cant open error.
+ * @file_path: Path to the supposed file.
+ *
+ * Return: 127.
+ */
+
+int cant_open(char *file_path)
+{
+	char *error, *hist_str;
+	int len;
+
+	hist_str = _itoa(hist);
+	if (!hist_str)
+		return (127);
+
+	len = _strlen(name) + _strlen(hist_str) + _strlen(file_path) + 16;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
 	{
-		h = h->next;
-		i++;
+		free(hist_str);
+		return (127);
 	}
-	return (i);
+
+	_strcpy(error, name);
+	_strcat(error, ": ");
+	_strcat(error, hist_str);
+	_strcat(error, ": Can't open ");
+	_strcat(error, file_path);
+	_strcat(error, "\n");
+
+	free(hist_str);
+	write(STDERR_FILENO, error, len);
+	free(error);
+	return (127);
 }
 
 /**
- * list_to_strings - returns an array of strings of the list->str
- * @head: pointer to first node
+ * proc_file_commands - Takes a file and attempts to run the commands stored
+ * within.
+ * @file_path: Path to the file.
+ * @exe_ret: Return value of the last executed command.
  *
- * Return: array of strings
+ * Return: If file couldn't be opened - 127.
+ *	   If malloc fails - -1.
+ *	   Otherwise the return value of the last command ran.
  */
-char **list_to_strings(list_t *head)
+int proc_file_commands(char *file_path, int *exe_ret)
 {
-	list_t *node = head;
-	size_t i = list_len(head), j;
-	char **strs;
-	char *str;
+	ssize_t file, b_read, i;
+	unsigned int line_size = 0;
+	unsigned int old_size = 120;
+	char *line, **args, **front;
+	char buffer[120];
+	int ret;
 
-	if (!head || !i)
-		return (NULL);
-	strs = malloc(sizeof(char *) * (i + 1));
-	if (!strs)
-		return (NULL);
-	for (i = 0; node; node = node->next, i++)
+	hist = 0;
+	file = open(file_path, O_RDONLY);
+	if (file == -1)
 	{
-		str = malloc(_strlen(node->str) + 1);
-		if (!str)
+		*exe_ret = cant_open(file_path);
+		return (*exe_ret);
+	}
+	line = malloc(sizeof(char) * old_size);
+	if (!line)
+		return (-1);
+	do {
+		b_read = read(file, buffer, 119);
+		if (b_read == 0 && line_size == 0)
+			return (*exe_ret);
+		buffer[b_read] = '\0';
+		line_size += b_read;
+		line = _realloc(line, old_size, line_size);
+		_strcat(line, buffer);
+		old_size = line_size;
+	} while (b_read);
+	for (i = 0; line[i] == '\n'; i++)
+		line[i] = ' ';
+	for (; i < line_size; i++)
+	{
+		if (line[i] == '\n')
 		{
-			for (j = 0; j < i; j++)
-				free(strs[j]);
-			free(strs);
-			return (NULL);
+			line[i] = ';';
+			for (i += 1; i < line_size && line[i] == '\n'; i++)
+				line[i] = ' ';
 		}
-
-		str = _strcpy(str, node->str);
-		strs[i] = str;
 	}
-	strs[i] = NULL;
-	return (strs);
-}
-
-
-/**
- * print_list - prints all elements of a list_t linked list
- * @h: pointer to first node
- *
- * Return: size of list
- */
-size_t print_list(const list_t *h)
-{
-	size_t i = 0;
-
-	while (h)
+	variable_replacement(&line, exe_ret);
+	handle_line(&line, line_size);
+	args = _strtok(line, " ");
+	free(line);
+	if (!args)
+		return (0);
+	if (check_args(args) != 0)
 	{
-		_puts(convert_number(h->num, 10, 0));
-		_putchar(':');
-		_putchar(' ');
-		_puts(h->str ? h->str : "(nil)");
-		_puts("\n");
-		h = h->next;
-		i++;
+		*exe_ret = 2;
+		free_args(args, args);
+		return (*exe_ret);
 	}
-	return (i);
-}
+	front = args;
 
-/**
- * node_starts_with - returns node whose string starts with prefix
- * @node: pointer to list head
- * @prefix: string to match
- * @c: the next character after prefix to match
- *
- * Return: match node or null
- */
-list_t *node_starts_with(list_t *node, char *prefix, char c)
-{
-	char *p = NULL;
-
-	while (node)
+	for (i = 0; args[i]; i++)
 	{
-		p = starts_with(node->str, prefix);
-		if (p && ((c == -1) || (*p == c)))
-			return (node);
-		node = node->next;
+		if (_strncmp(args[i], ";", 1) == 0)
+		{
+			free(args[i]);
+			args[i] = NULL;
+			ret = call_args(args, front, exe_ret);
+			args = &args[++i];
+			i = 0;
+		}
 	}
-	return (NULL);
-}
 
-/**
- * get_node_index - gets the index of a node
- * @head: pointer to list head
- * @node: pointer to the node
- *
- * Return: index of node or -1
- */
-ssize_t get_node_index(list_t *head, list_t *node)
-{
-	size_t i = 0;
+	ret = call_args(args, front, exe_ret);
 
-	while (head)
-	{
-		if (head == node)
-			return (i);
-		head = head->next;
-		i++;
-	}
-	return (-1);
+	free(front);
+	return (ret);
 }
