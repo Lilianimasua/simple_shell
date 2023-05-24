@@ -1,87 +1,92 @@
+/*
+ * File: str_funcs1.c
+ * Auth: John Mwadime
+ *       Lilian
+ */
+
 #include "shell.h"
 
-/**
- * _strcpy - copies a string
- * @dest: the destination
- * @src: the source
- *
- * Return: pointer to destination
- */
-char *_strcpy(char *dest, char *src)
-{
-	int i = 0;
+int _strlen(const char *s);
+char *_strcpy(char *dest, const char *src);
+char *_strcat(char *dest, const char *src);
+char *_strncat(char *dest, const char *src, size_t n);
 
-	if (dest == src || src == 0)
-		return (dest);
-	while (src[i])
-	{
+/**
+ * _strlen - Returns the length of a string.
+ * @s: A pointer to the characters string.
+ *
+ * Return: The length of the character string.
+ */
+int _strlen(const char *s)
+{
+	int length = 0;
+
+	if (!s)
+		return (length);
+	for (length = 0; s[length]; length++)
+		;
+	return (length);
+}
+
+/**
+ * _strcpy - Copies the string pointed to by src, including the
+ *           terminating null byte, to the buffer pointed by des.
+ * @dest: Pointer to the destination of copied string.
+ * @src: Pointer to the src of the source string.
+ *
+ * Return: Pointer to dest.
+ */
+char *_strcpy(char *dest, const char *src)
+{
+	size_t i;
+
+	for (i = 0; src[i] != '\0'; i++)
 		dest[i] = src[i];
-		i++;
-	}
-	dest[i] = 0;
+	dest[i] = '\0';
 	return (dest);
 }
 
 /**
- * _strdup - duplicates a string
- * @str: the string to duplicate
+ * _strcat - Concantenates two strings.
+ * @dest: Pointer to destination string.
+ * @src: Pointer to source string.
  *
- * Return: pointer to the duplicated string
+ * Return: Pointer to destination string.
  */
-char *_strdup(const char *str)
+char *_strcat(char *dest, const char *src)
 {
-	int length = 0;
-	char *ret;
+	char *destTemp;
+	const char *srcTemp;
 
-	if (str == NULL)
-		return (NULL);
-	while (*str++)
-		length++;
-	ret = malloc(sizeof(char) * (length + 1));
-	if (!ret)
-		return (NULL);
-	for (length++; length--;)
-		ret[length] = *--str;
-	return (ret);
+	destTemp = dest;
+	srcTemp =  src;
+
+	while (*destTemp != '\0')
+		destTemp++;
+
+	while (*srcTemp != '\0')
+		*destTemp++ = *srcTemp++;
+	*destTemp = '\0';
+	return (dest);
 }
 
 /**
- *_puts - prints an input string
- *@str: the string to be printed
+ * _strncat - Concantenates two strings where n number
+ *            of bytes are copied from source.
+ * @dest: Pointer to destination string.
+ * @src: Pointer to source string.
+ * @n: n bytes to copy from src.
  *
- * Return: Nothing
+ * Return: Pointer to destination string.
  */
-void _puts(char *str)
+char *_strncat(char *dest, const char *src, size_t n)
 {
-	int i = 0;
+	size_t dest_len = _strlen(dest);
+	size_t i;
 
-	if (!str)
-		return;
-	while (str[i] != '\0')
-	{
-		_putchar(str[i]);
-		i++;
-	}
-}
+	for (i = 0; i < n && src[i] != '\0'; i++)
+		dest[dest_len + i] = src[i];
+	dest[dest_len + i] = '\0';
 
-/**
- * _putchar - writes the character c to stdout
- * @c: The character to print
- *
- * Return: On success 1.
- * On error, -1 is returned, and errno is set appropriately.
- */
-int _putchar(char c)
-{
-	static int i;
-	static char buf[WRITE_BUF_SIZE];
-
-	if (c == BUF_FLUSH || i >= WRITE_BUF_SIZE)
-	{
-		write(1, buf, i);
-		i = 0;
-	}
-	if (c != BUF_FLUSH)
-		buf[i++] = c;
-	return (1);
+	return (dest);
 }
