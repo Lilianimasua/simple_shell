@@ -1,74 +1,177 @@
+/*
+ * File: errmessage.c
+ * Auth: John 
+ *       Lilian
+ */
+
 #include "shell.h"
 
+char *error_env(char **args);
+char *error_1(char **args);
+char *error_2_exit(char **args);
+char *error_2_cd(char **args);
+char *error_2_syntax(char **args);
 /**
- * interactive - returns true if shell is interactive mode
- * @info: struct address
+ * error_env - Creates an error message for shellby_env errors.
+ * @args: An array of arguments passed to the command.
  *
- * Return: 1 if interactive mode, 0 otherwise
+ * Return: The error string.
  */
-int interactive(info_t *info)
+char *error_env(char **args)
 {
-	return (isatty(STDIN_FILENO) && info->readfd <= 2);
-}
+	char *error, *hist_str;
+	int len;
 
-/**
- * is_delim - checks if character is a delimeter
- * @c: the char to check
- * @delim: the delimeter string
- * Return: 1 if true, 0 if false
- */
-int is_delim(char c, char *delim)
-{
-	while (*delim)
-		if (*delim++ == c)
-			return (1);
-	return (0);
-}
+	hist_str = _itoa(hist);
+	if (!hist_str)
+		return (NULL);
 
-/**
- *_isalpha - checks for alphabetic character
- *@c: The character to input
- *Return: 1 if c is alphabetic, 0 otherwise
- */
-
-int _isalpha(int c)
-{
-	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
-		return (1);
-	else
-		return (0);
-}
-
-/**
- *_atoi - converts a string to an integer
- *@s: the string to be converted
- *Return: 0 if no numbers in string, converted number otherwise
- */
-
-int _atoi(char *s)
-{
-	int i, sign = 1, flag = 0, output;
-	unsigned int result = 0;
-
-	for (i = 0;  s[i] != '\0' && flag != 2; i++)
+	args--;
+	len = _strlen(name) + _strlen(hist_str) + _strlen(args[0]) + 45;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
 	{
-		if (s[i] == '-')
-			sign *= -1;
-
-		if (s[i] >= '0' && s[i] <= '9')
-		{
-			flag = 1;
-			result *= 10;
-			result += (s[i] - '0');
-		}
-		else if (flag == 1)
-			flag = 2;
+		free(hist_str);
+		return (NULL);
 	}
 
-	if (sign == -1)
-		output = -result;
-	else
-		output = result;
+	_strcpy(error, name);
+	_strcat(error, ": ");
+	_strcat(error, hist_str);
+	_strcat(error, ": ");
+	_strcat(error, args[0]);
+	_strcat(error, ": Unable to add/remove from environment\n");
 
-	return (output);
+	free(hist_str);
+	return (error);
+}
+
+/**
+ * error_1 - Creates an error message for shellby_alias errors.
+ * @args: An array of arguments passed to the command.
+ *
+ * Return: The error string.
+ */
+char *error_1(char **args)
+{
+	char *error;
+	int len;
+
+	len = _strlen(name) + _strlen(args[0]) + 13;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
+		return (NULL);
+
+	_strcpy(error, "alias: ");
+	_strcat(error, args[0]);
+	_strcat(error, " not found\n");
+
+	return (error);
+}
+
+/**
+ * error_2_exit - Creates an error message for shellby_exit errors.
+ * @args: An array of arguments passed to the command.
+ *
+ * Return: The error string.
+ */
+char *error_2_exit(char **args)
+{
+	char *error, *hist_str;
+	int len;
+
+	hist_str = _itoa(hist);
+	if (!hist_str)
+		return (NULL);
+
+	len = _strlen(name) + _strlen(hist_str) + _strlen(args[0]) + 27;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
+	{
+		free(hist_str);
+		return (NULL);
+	}
+
+	_strcpy(error, name);
+	_strcat(error, ": ");
+	_strcat(error, hist_str);
+	_strcat(error, ": exit: Illegal number: ");
+	_strcat(error, args[0]);
+	_strcat(error, "\n");
+
+	free(hist_str);
+	return (error);
+}
+
+/**
+ * error_2_cd - Creates an error message for shellby_cd errors.
+ * @args: An array of arguments passed to the command.
+ *
+ * Return: The error string.
+ */
+char *error_2_cd(char **args)
+{
+	char *error, *hist_str;
+	int len;
+
+	hist_str = _itoa(hist);
+	if (!hist_str)
+		return (NULL);
+
+	if (args[0][0] == '-')
+		args[0][2] = '\0';
+	len = _strlen(name) + _strlen(hist_str) + _strlen(args[0]) + 24;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
+	{
+		free(hist_str);
+		return (NULL);
+	}
+
+	_strcpy(error, name);
+	_strcat(error, ": ");
+	_strcat(error, hist_str);
+	if (args[0][0] == '-')
+		_strcat(error, ": cd: Illegal option ");
+	else
+		_strcat(error, ": cd: can't cd to ");
+	_strcat(error, args[0]);
+	_strcat(error, "\n");
+
+	free(hist_str);
+	return (error);
+}
+
+/**
+ * error_2_syntax - Creates an error message for syntax errors.
+ * @args: An array of arguments passed to the command.
+ *
+ * Return: The error string.
+ */
+char *error_2_syntax(char **args)
+{
+	char *error, *hist_str;
+	int len;
+
+	hist_str = _itoa(hist);
+	if (!hist_str)
+		return (NULL);
+
+	len = _strlen(name) + _strlen(hist_str) + _strlen(args[0]) + 33;
+	error = malloc(sizeof(char) * (len + 1));
+	if (!error)
+	{
+		free(hist_str);
+		return (NULL);
+	}
+
+	_strcpy(error, name);
+	_strcat(error, ": ");
+	_strcat(error, hist_str);
+	_strcat(error, ": Syntax error: \"");
+	_strcat(error, args[0]);
+	_strcat(error, "\" unexpected\n");
+
+	free(hist_str);
+	return (error);
 }
